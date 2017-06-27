@@ -1,0 +1,168 @@
+# <copyright>
+# (c) Copyright 2017 Hewlett Packard Enterprise Development LP
+#
+# This program is free software: you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General
+# Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# </copyright>
+#====================================================================
+#   csmake-packaging  csmakefile
+#====================================================================
+#NOTE: In order to build this package, you must have csmake-swak installed
+#      And you must have a GPG key created
+#See: https://fedoraproject.org/wiki/Creating_GPG_Keys
+#  For details
+
+[~~phases~~]
+clean=Remove all csmake generated files
+package=Create the csmake-packaging package
+**sequences=
+   clean -> package: create the csmake-packaging install package
+**default=clean -> package
+
+[metadata@csmake-packaging]
+name=csmake-packaging
+version=1.1.0
+description=Library of csmake modules to create packages
+about=The core csmake contains minimal support for packaging
+ This library is intended to round out support for more robust
+ and feature packed packaging.
+ .
+ Current support includes: Debian binaries, tar-balls, zip files, RPM binaries
+ .
+ Future support may include: Python wheels, RPM, cygwin, Debian source
+packager=HPE CloudSystem RIDE Team  <hpcloud-cs-ride@hpe.com>
+manufacturer=Hewlett Packard Enterprise
+depends=python (>= 2.6), binutils, chrpath, zlib1g, csmake-swak (>= 1.1)
+recommends=rpmlint
+keywords=make build development
+url=https://rndwiki.corp.hpecorp.net/confluence/display/cloudos/CsMake
+copyrights=csmake-copyright
+classifiers=
+    Development Status :: 4 - Beta
+    Intended Audience :: Developers
+    Topic :: Software Development :: Build Tools
+    Programming Language :: Python :: 2
+    Programming Language :: Python :: 2.6
+    Programming Language :: Python :: 2.7
+    License :: Other/Proprietary License
+**files=
+    <CsmakeModules (python:csmake-modules)> CsmakeModules/*.py
+#    <CsmakeModules (python:csmake-modules)> CsmakeModules/*.py,
+#    <CsmakePackaging (python:csmake-modules)> CsmakePackaging/*.py
+
+[copyright@csmake-copyright]
+disclaimer=This software was produced for and by Hewlett Packard Enterprise
+   All rights are reserved.
+license=non-free
+holder=Hewlett-Packard Enterprise
+years=2014-2015
+comment=If csmake is made public, this copyright would need to change to
+   reflect that
+
+[AsciiGPGSignature@default-ascii-sign]
+[DebianPackage@debian-csmake-packaging]
+package-version=1.0
+maps=csmake-packaging-installs
+result=%(RESULTS)s/debpackage
+debian-directory-copyright=csmake-copyright
+signer=default-ascii-sign
+
+[ZipPackager@zip-csmake-packaging]
+package-version=1.0
+maps=csmake-packaging-installs
+result=%(RESULTS)s/zipfile
+
+[WheelPackage@wheel-csmake-packaging]
+package-version=1.0
+top-level=Csmake
+maps=csmake-packaging-installs
+result=%(RESULTS)s/wheelfile
+
+[CSUPackage@csu-csmake-packaging]
+package-version=1.0.0
+maps=csmake-packaging-installs
+result=%(RESULTS)s/csufile
+
+[Signature@default-sign]
+[RpmPackage@rpm-csmake-packaging]
+package-version=1.0
+maps=csmake-packaging-installs
+result=%(RESULTS)s/rpmfile
+signers=default-sign
+
+[versioning@snapshot-version]
+designation=snapshot
+format={datetime}.{gitSHA}
+shell_datetime=date --utc +%%Y%%m%%d%%H%%M%%S
+shell_gitSHA=git rev-parse HEAD
+
+[versioning@rc-version]
+designation=rc
+format=rc{rc}
+value_rc=1
+
+[installmap@csmake-packaging-installs]
+#The copyrights are here as an example to demonstrate the ability
+#To mark copyrights for different sections
+path_root=INSTALL_ROOT
+path_python-lib=PYTHON
+owner_root=root
+group_root=root
+
+map_CsmakeModules=
+   map: <CsmakeModules> -(1-1)-> {PYTHON}/CsmakePackaging/CsmakeModules/{~~file~~}}
+   copyright: csmake-copyright
+   owner:{root}
+   group:{root}
+   permissions:644
+
+#map_CsmakePackaging=
+#   map: <CsmakePackaging> -(1-1)-> {PYTHON}/CsmakePackaging/{~~file~~}}
+#   copyright: csmake-copyright
+#   owner:{root}
+#   group:{root}
+#   permissions:644
+
+
+[command@snapshot]
+description=Create and package a csmake snapshot
+00=csmake-packaging, snapshot-version, default
+
+[command@rc]
+description=Create and package a csmake release candidate
+00=csmake-packaging, rc-version, default
+
+[command@debian-only]
+description=Create a debian package only
+00=csmake-packaging, debian-csmake-packaging
+
+[command@wheel-only]
+description=Create a wheel package only
+00=csmake-packaging, wheel-csmake-packaging
+
+[command@zip-only]
+description=Create a wheel package only
+00=csmake-packaging, zip-csmake-packaging
+
+[command@rpm-only]
+description=Create an RPM package only
+00=csmake-packaging, rpm-csmake-packaging
+
+[command@csu]
+description=Create a csu package - just for testing
+00=csmake-packaging, csu-csmake-packaging
+
+[command@default]
+description=Create and package a csmake release
+00=csmake-packaging, debian-csmake-packaging & zip-csmake-packaging & wheel-csmake-packaging & rpm-csmake-packaging
+
