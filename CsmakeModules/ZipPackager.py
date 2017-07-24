@@ -38,6 +38,7 @@ class ZipPackager(Packager):
     """Purpose: Implements a bare zip file format packaging
        Implements: Packager
        Type: Module   Library: csmake-packaging
+       Package Name Format: zip
        Phases:
            package - Will build the package
            clean, package_clean - will delete the package
@@ -57,6 +58,7 @@ class ZipPackager(Packager):
     """
 
     REQUIRED_OPTIONS = ['maps', 'result', 'package-version']
+    PACKAGER_NAME_FORMAT = 'zip'
 
     def _calculateFileNameAndVersioning(self):
         Packager._calculateFileNameAndVersioning(self)

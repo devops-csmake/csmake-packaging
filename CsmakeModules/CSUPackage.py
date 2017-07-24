@@ -44,6 +44,7 @@ class CSUPackage(ZipPackager):
     """Purpose: Implements an HP CSU packager
        Implements: ZipPackager
        Type: Module   Library: csmake-packaging
+       Package Name Format: csu
        Phases:
            package - Will build the package
            clean, package_clean - will delete the package
@@ -95,6 +96,7 @@ class CSUPackage(ZipPackager):
     """
 
     REQUIRED_OPTIONS = ['maps', 'result', 'package-version']
+    PACKAGER_NAME_FORMAT = 'csu'
 
     METAMAP_METHODS = {
         'name' : Packager.MetadataMapper,
