@@ -50,6 +50,7 @@ class RpmPackage(Packager):
     """Purpose: To create a .rpm package that can be consumed by rpm.
        Implements: Packager
        Type: Module   Library: csmake-packaging
+       Package Name Format: rpm
        Phases:
            package - Will build a RPM package
            clean, package_clean - will delete the package
@@ -125,6 +126,7 @@ class RpmPackage(Packager):
     #https://github.com/rpm-software-management/rpm/blob/master/lib/rpmtag.h
 
     REQUIRED_OPTIONS = ['package-version', 'maps', 'result']
+    PACKAGER_NAME_FORMAT = 'rpm'
 
     class I18NMetadataMapper:
         @staticmethod
@@ -362,7 +364,7 @@ class RpmPackage(Packager):
             self.sectionHeaderRecord.writeStore(package, hashfunctions)
 
     METAMAP_METHODS = {
-        (1000, RpmRecordString) : Packager.MetadataMapper,
+        (1000, RpmRecordString) : Packager.PackageNameMapper,
         (1015, RpmRecordString) : Packager.MetadataMapper,
         (1004, RpmRecordI18NStringArray) : I18NMetadataMapper,
         (1011, RpmRecordString) : Packager.MetadataMapper,
@@ -595,7 +597,8 @@ class RpmPackage(Packager):
     RPMSENSE_RPMLIB = 1 << 24
     DEBDEP_REGEX = re.compile(r"(?P<name>[^( ]*)\s*(\((?P<op>[<=>~]+)\s*(?P<version>([0-9]+\:)?[0-9]+([.].+)*)\))?")
     def _parseDebianDependencies(self, data):
-        items = self._parseCommaAndNewlineList(data)
+        transData = self._translatePackageNames(data)
+        items = self._parseCommaAndNewlineList(transData)
         names = []
         flags = []
         versions = []
@@ -903,7 +906,7 @@ class RpmPackage(Packager):
     def _placeDirectoryInArchive(self, mapping, sourcePath, archivePath, aspects, info):
         dirlist = os.listdir(sourcePath)
         for entry in dirlist:
-            actualArchivePath = os.path.join(sourcePath, entry)
+            actualArchivePath = os.path.join(archivePath, entry)
             actualSourcePath = os.path.join(sourcePath, entry)
             #If we want each directory level processed and aspected,
             #  we could remove this if section.
@@ -957,7 +960,7 @@ class RpmPackage(Packager):
             return None
 
         if info.type == tarfile.DIRTYPE:
-            return self._placeDirectoryInArchive(mapping, sourcePath, archivePath, aspects)
+            return self._placeDirectoryInArchive(mapping, sourcePath, archivePath, aspects, info)
 
         if 'rpmflags' in mapping:
             flags = mapping['rpmflags'].split(',')

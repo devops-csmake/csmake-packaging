@@ -42,6 +42,7 @@ class PythonPackage(Packager):
                 NOTE --CURRENTLY NOT IMPLEMENTED--
        Implements: Packager
        Type: Module   Library: csmake-packaging
+       Package Name Format: python
        Phases:
            package - Will build a python package based on
                    passing the usual flags as parameters to setup
@@ -59,6 +60,8 @@ class PythonPackage(Packager):
        See Also:
            csmake --list-type Packager
     """
+
+    PACKAGER_NAME_FORMAT = 'python'
 
     def package(self, options):
         savedArgv = sys.argv.copy()

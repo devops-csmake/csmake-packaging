@@ -43,6 +43,7 @@ class WheelPackage(ZipPackager):
     """Purpose: Implements a PEP-427 compliant wheel packaging
        Implements: ZipPackager
        Type: Module   Library: csmake-packaging
+       Package Name Format: python
        Description: The implementation for WheelPackage crates a wheel using
            the ZipPackager implementation.
                  - see: --list-type=ZipPackager  and  --list-type=Packager
@@ -88,11 +89,12 @@ class WheelPackage(ZipPackager):
     """
 
     REQUIRED_OPTIONS = ['maps', 'result', 'package-version']
+    PACKAGER_NAME_FORMAT = 'python'
 
     WHEEL_GENERATOR = "csmake (WheelPackage 0.1.0)"
 
     METAMAP_METHODS = {
-        'Name' : Packager.MetadataMapper,
+        'Name' : Packager.PackageNameMapper,
         'Summary' : Packager.MetadataMapper,
         'License' : Packager.METAMAP_METHODS['License'],
         'Keywords' : Packager.MetadataMapper,
