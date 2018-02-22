@@ -462,7 +462,7 @@ class RpmPackage(Packager):
     def _control_postinst(self, control):
         self._writeMaintainerScript(1024, control)
     def _control_postin(self, control):
-        self._control_postints(control)
+        self._control_postinst(control)
 
     #1079 == RPMTAG_VERIFYSCRIPT
     def _control_verify(self, control):
