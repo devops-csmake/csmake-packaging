@@ -1,4 +1,5 @@
 # <copyright>
+# (c) Copyright 2018 Cardinal Peak Technologies, LLC
 # (c) Copyright 2017 Hewlett Packard Enterprise Development LP
 #
 # This program is free software: you can redistribute it and/or modify it
@@ -34,7 +35,7 @@ rpm=zlib-devel
 
 [metadata@csmake-packaging]
 name=csmake-packaging
-version=1.1.1
+version=1.1.2
 description=Library of csmake modules to create packages
 about=The core csmake contains minimal support for packaging
  This library is intended to round out support for more robust
@@ -43,13 +44,13 @@ about=The core csmake contains minimal support for packaging
  Current support includes: Debian binaries, tar-balls, zip files, RPM binaries
  .
  Future support may include: Python wheels, cygwin, Debian and RPM source
-packager= Jeremiah Patterson <jerpat@hpe.com>
-manufacturer=Hewlett Packard Enterprise
+packager= Jeremiah Patterson <jerry@casecracker.com>
+manufacturer=Cardinal Peak Technologies, LLC
 depends=python (>= 2.6), binutils, chrpath, zlib1g, csmake-swak (>= 1.1)
 recommends=rpmlint
 keywords=make build development
 url=https://rndwiki.corp.hpecorp.net/confluence/display/cloudos/CsMake
-copyrights=csmake-copyright
+copyrights=csmake-copyright, csmake-cpt-copyright
 classifiers=
     Development Status :: 4 - Beta
     Intended Audience :: Developers
@@ -83,12 +84,17 @@ license=GPLv3
 holder=Hewlett-Packard Enterprise
 years=2014-2017
 
+[copyright@csmake-cpt-copyright]
+license=GPLv3
+holder=Cardinal Peak Technologies, LLC
+years=2018
+
 [AsciiGPGSignature@default-ascii-sign]
 [DebianPackage@debian-csmake-packaging]
 package-version=1.0
 maps=csmake-packaging-installs
 result=%(RESULTS)s/debpackage
-debian-directory-copyright=csmake-copyright
+debian-directory-copyright=csmake-cpt-copyright
 signer=default-ascii-sign
 
 [ZipPackager@zip-csmake-packaging]
@@ -135,7 +141,7 @@ group_root=root
 
 map_CsmakeModules=
    map: <CsmakeModules> -(1-1)-> {PYTHON}/CsmakePackaging/CsmakeModules/{~~file~~}}
-   copyright: csmake-copyright
+   copyright: csmake-copyright, csmake-cpt-copyright
    owner:{root}
    group:{root}
    permissions:644

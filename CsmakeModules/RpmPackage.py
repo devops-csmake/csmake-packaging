@@ -1,20 +1,5 @@
 # <copyright>
-# (c) Copyright 2017 Hewlett Packard Enterprise Development LP
-#
-# This program is free software: you can redistribute it and/or modify it
-# under the terms of the GNU General Public License as published by the
-# Free Software Foundation, either version 3 of the License, or (at your
-# option) any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General
-# Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
-# </copyright>
-# <copyright>
+# (c) Copyright 2018 Cardinal Peak Technologies, LLC
 # (c) Copyright 2017 Hewlett Packard Enterprise Development LP
 #
 # This program is free software: you can redistribute it and/or modify it
@@ -477,7 +462,7 @@ class RpmPackage(Packager):
     def _control_postinst(self, control):
         self._writeMaintainerScript(1024, control)
     def _control_postin(self, control):
-        self._control_postints(control)
+        self._control_postinst(control)
 
     #1079 == RPMTAG_VERIFYSCRIPT
     def _control_verify(self, control):
@@ -595,36 +580,55 @@ class RpmPackage(Packager):
     RPMSENSE_SCRIPT_POSTUN = 1 << 13
 
     RPMSENSE_RPMLIB = 1 << 24
-    DEBDEP_REGEX = re.compile(r"(?P<name>[^( ]*)\s*(\((?P<op>[<=>~]+)\s*(?P<version>([0-9]+\:)?[0-9]+([.].+)*)\))?")
+    DEB_OP_TRANSLATION = {
+        '<' : RPMSENSE_LESS,
+        '=' : RPMSENSE_EQUAL,
+        '>' : RPMSENSE_GREATER,
+        '~' : RPMSENSE_EQUAL
+    }
+
+    def _flattenDebianDependencies(self, ast):
+        #TODO: For now, we don't do rich boolean...
+        if ast[0] == 'id':
+            return [(ast[1], ast[2])]
+        if ast[0] == 'or':
+            #Just take the first in the list...yuck
+            return self._flattenDebianDependencies(ast[1])
+        if ast[0] == 'and':
+            result = []
+            for item in ast[1:]:
+                result.extend(
+                    self._flattenDebianDependencies(item))
+            return result
+
     def _parseDebianDependencies(self, data):
-        transData = self._translatePackageNames(data)
-        items = self._parseCommaAndNewlineList(transData)
+        ast = self._translatePackageNames(data)
+        if ast is None:
+            return ([], [], [])
+        items = self._flattenDebianDependencies(ast)
+        self.log.debug("flattened deps: %s", items)
         names = []
         flags = []
         versions = []
-        for item in items:
-            if '|' in item or '&' in item:
-                #TODO: richboolean required...skip for now
-                continue
-            m = RpmPackage.DEBDEP_REGEX.match(item)
-            if m is None:
-                self.log.warning("'%s' is not a valid dependency", item)
-                continue
-            parts = m.groupdict()
-            resultflags = 0
-            if parts['op'] is not None:
-                if '<' in  parts['op']:
-                    resultflags |= RpmPackage.RPMSENSE_LESS
-                if '=' in parts['op']:
-                    resultflags |= RpmPackage.RPMSENSE_EQUAL
-                if '>' in parts['op']:
-                    resultflags |= RpmPackage.RPMSENSE_GREATER
-            names.append(parts['name'])
-            flags.append(resultflags)
-            if parts['version'] is not None:
-                versions.append(parts['version'])
+        for item, version in items:
+            version = version.strip()
+            resultFlags = 0
+            if len(version) == 0:
+                versionString = ""
             else:
-                versions.append('')
+                if version[0] not in RpmPackage.DEB_OP_TRANSLATION:
+                    self.log.warning("'%s' is not a value version for '%s'", version, item)
+                    versionString = ""
+                else:
+                    resultFlags |= RpmPackage.DEB_OP_TRANSLATION[version[0]]
+                    if version[1] in RpmPackage.DEB_OP_TRANSLATION:
+                        resultFlags |= RpmPackage.DEB_OP_TRANSLATION[version[1]]
+                        versionString = version[2:].strip()
+                    else:
+                        versionString = version[1:].strip()
+            names.append(item)
+            flags.append(resultFlags)
+            versions.append(versionString)
         return (names, flags, versions)
 
     def _doMetadataMappings(self):
