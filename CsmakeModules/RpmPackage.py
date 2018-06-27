@@ -1403,7 +1403,7 @@ class RpmPackage(Packager):
         item = RpmPackage.RpmRecordInt32(1007, self.totalUncompressedPayload)
         sigBlock.addRecord(item)
         #1010 == RPMSIGTAG_SHA1 - sha1 of the header content
-        item = RpmPackage.RpmRecordString(1010, self.headerSHA.digest())
+        item = RpmPackage.RpmRecordString(1010, self.headerSHA.hexdigest())
         sigBlock.addRecord(item)
         #RSA/DSA/PGP/GPG Signatures would go here...
         return sigBlock
@@ -1451,6 +1451,7 @@ class RpmPackage(Packager):
         self.headers.write(self.archiveHeaders, headerdigests)
 	self.totalPayloadSize = self.archiveHeaders.tell()
         self.archiveHeaders.close()
+        self.archive.flush()
         self.archive.seek(0)
         block = self.archive.read(10240)
         while len(block) > 0:
