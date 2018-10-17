@@ -1145,7 +1145,7 @@ class RpmPackage(Packager):
             rpmdirname = dirname
             if rpmdirname[0] == '.':
                 rpmdirname = rpmdirname[1:]
-            if rpmdirname[-1] != '/':
+            if len(rpmdirname) == 0 or rpmdirname[-1] != '/':
                 rpmdirname += '/'
             if rpmdirname in self.dirNames:
                 dirindex = self.dirNames.index(rpmdirname)
