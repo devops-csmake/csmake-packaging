@@ -1,5 +1,5 @@
 # <copyright>
-# (c) Copyright 2018 Cardinal Peak Technologies, LLC
+# (c) Copyright 2018, 2020 Cardinal Peak Technologies, LLC
 # (c) Copyright 2017 Hewlett Packard Enterprise Development LP
 #
 # This program is free software: you can redistribute it and/or modify it
@@ -670,6 +670,10 @@ class RpmPackage(Packager):
         self.packageMetadata[
             (1002, RpmPackage.RpmRecordString)] = self.packageVersion
 
+        #1006 == RPMTAG_BUILDTIME, required to survive rebuilddb
+        self.packageMetadata[
+            (1006, RpmPackage.RpmRecordInt32)] = int(time.time())
+
         #1007 == RPMTAG_BUILDHOST
         self.packageMetadata[
             (1007, RpmPackage.RpmRecordString)] = 'csmake'
@@ -678,9 +682,14 @@ class RpmPackage(Packager):
         self.packageMetadata[
             (1022, RpmPackage.RpmRecordString)] = self.arch
 
-        #1131 == RMPTAG_RHNPLATFORM (deprecated)
+        #1131 == RPMTAG_RHNPLATFORM (deprecated)
         self.packageMetadata[
             (1131, RpmPackage.RpmRecordString)] = self.arch
+
+        #1132 == RPMTAG_PLATFORM
+        #TODO: Find a way to define the rest of this in the metadata
+        self.packageMetadata[
+            (1132, RpmPackage.RpmRecordString)] = self.arch + "-redhat-linux-gnu"
 
         #1124 == RPMTAG_PAYLOADFORMAT
         self.packageMetadata[
@@ -697,6 +706,10 @@ class RpmPackage(Packager):
         #1001 == RPMTAG_VERSION
         self.packageMetadata[
             (1001, RpmPackage.RpmRecordString)] = self.productMetadata['version']['primary']
+
+        #1044 == RPMTAG_SOURCERPM
+        self.packageMetadata[
+            (1044, RpmPackage.RpmRecordString)] = self.fullSourcePackageName
 
         #1064 == RPMTAG_RPMVERSION
         self.packageMetadata[
@@ -893,6 +906,7 @@ class RpmPackage(Packager):
             self.packageName,
             self.filenameFullVersion )
         self.fullPackageName = '%s.%s.rpm' % (self.fullLeadName, self.arch)
+        self.fullSourcePackageName = '%s.%s.src.rpm' % (self.fullLeadName, self.arch)
         self.fullPathToPackage = os.path.join(
             self.resultdir,
             self.fullPackageName )
@@ -1403,7 +1417,10 @@ class RpmPackage(Packager):
         item = RpmPackage.RpmRecordInt32(1007, self.totalUncompressedPayload)
         sigBlock.addRecord(item)
         #1010 == RPMSIGTAG_SHA1 - sha1 of the header content
-        item = RpmPackage.RpmRecordString(1010, self.headerSHA.hexdigest())
+        #item = RpmPackage.RpmRecordString(1010, self.headerSHA.hexdigest())
+        #sigBlock.addRecord(item)
+        #269 == RPMTAG_SHA1HEADER - sha1 of the header content
+        item = RpmPackage.RpmRecordString(269, self.headerSHA.hexdigest())
         sigBlock.addRecord(item)
         #RSA/DSA/PGP/GPG Signatures would go here...
         return sigBlock
