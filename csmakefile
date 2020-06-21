@@ -1,5 +1,5 @@
 # <copyright>
-# (c) Copyright 2018 Cardinal Peak Technologies, LLC
+# (c) Copyright 2018-2020 Cardinal Peak Technologies, LLC
 # (c) Copyright 2017 Hewlett Packard Enterprise Development LP
 #
 # This program is free software: you can redistribute it and/or modify it
@@ -35,7 +35,7 @@ rpm=zlib-devel
 
 [metadata@csmake-packaging]
 name=csmake-packaging
-version=1.1.4
+version=1.1.5
 description=Library of csmake modules to create packages
 about=The core csmake contains minimal support for packaging
  This library is intended to round out support for more robust
