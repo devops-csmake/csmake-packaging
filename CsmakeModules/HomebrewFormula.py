@@ -51,8 +51,12 @@ class HomebrewFormula(Packager):
            'depends_on' lines.  Version constraints are stripped; only the
            package name is preserved.
 
-           For local testing, install with:
-               brew install --formula ./<name>.rb
+           For local testing, current Homebrew requires formulae to live
+           in a tap (standalone .rb files are rejected):
+               brew tap-new <org>/local --no-git
+               cp <result>/<name>.rb \
+                  "$(brew --repository)/Library/Taps/<org>/homebrew-local/Formula/"
+               brew install <org>/local/<name>
 
        Install Map Definitions:  See Packager module
        See Also:
