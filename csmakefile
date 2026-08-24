@@ -26,9 +26,20 @@
 [~~phases~~]
 clean=Remove all csmake generated files
 package=Create the csmake-packaging package
+test=Run testing for csmake-packaging
 **sequences=
    clean -> package: create the csmake-packaging install package
 **default=clean -> package
+
+[TestPython@test-HermeticShell]
+test-dir=tests/
+test=testHermeticShell.py
+source-dir=.
+resource-dir=%(WORKING)s/tests
+
+[command@test]
+description=Run testing
+000=test-HermeticShell
 
 [translatePackageName@~~zlib1g~~]
 rpm=zlib-devel
