@@ -57,7 +57,7 @@ about=The core csmake contains minimal support for packaging
  Future support may include: Python wheels, cygwin, Debian and RPM source
 packager= Jeremiah Patterson <jerry@casecracker.com>
 manufacturer=Cardinal Peak Technologies, LLC
-depends=python (>= 2.6), binutils, chrpath, zlib1g, csmake-swak (>= 1.1)
+depends=python (>= 3.6), binutils, chrpath, zlib1g, csmake-swak (>= 1.1)
 recommends=rpmlint
 keywords=make build development
 url=https://rndwiki.corp.hpecorp.net/confluence/display/cloudos/CsMake
@@ -66,9 +66,8 @@ classifiers=
     Development Status :: 4 - Beta
     Intended Audience :: Developers
     Topic :: Software Development :: Build Tools
-    Programming Language :: Python :: 2
-    Programming Language :: Python :: 2.6
-    Programming Language :: Python :: 2.7
+    Programming Language :: Python :: 3
+    Programming Language :: Python :: 3 :: Only
     License :: OSI Approved :: GNU General Public License v3 (GPLv3)
 **files=
     <CsmakeModules (python:csmake-modules)> CsmakeModules/*.py

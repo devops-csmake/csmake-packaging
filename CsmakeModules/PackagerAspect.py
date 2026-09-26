@@ -129,7 +129,7 @@ class PackagerAspect(CsmakeAspect):
         filemanager = self._getFileManager()
         indexes = filemanager.parseFileDeclarationForIndexes(self.typemaps)
         for index in indexes:
-            keys = index.keys()
+            keys = list(index.keys())
             for key in keys:
                 if index[key] is None or len(index[key]) == 0:
                     del index[key]
@@ -156,7 +156,7 @@ class PackagerAspect(CsmakeAspect):
             self.log.devdebug("Installed '%s' for: %s", self.__class__.__name__, options['controls'])
         mappingHandlers = []
         controlWriters = []
-        for key, value in self.__class__.__dict__.iteritems():
+        for key, value in self.__class__.__dict__.items():
             if key.startswith('_map_'):
                 mappingHandlers.append(getattr(self, key))
             elif key.startswith('_control_'):

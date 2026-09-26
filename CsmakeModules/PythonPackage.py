@@ -31,8 +31,8 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 # </copyright>
 from CsmakeModules.Packager import Packager
-from distutils.command.install import install
 
+#from distutils.command.install import install
 #class csmakeinstaller(install):
 #    pass
 
@@ -64,6 +64,7 @@ class PythonPackage(Packager):
     PACKAGER_NAME_FORMAT = 'python'
 
     def package(self, options):
+        import sys
         savedArgv = sys.argv.copy()
         try:
             sys.argv = ['setup.py']
@@ -79,9 +80,10 @@ class PythonPackage(Packager):
                 self.log.error("The package definition '%s' failed to execute")
                 return None
 
+            import importlib
             import distutils.core
             #Ensure we get a fresh run at setup
-            reload(distutils.core)
+            importlib.reload(distutils.core)
 
             #Do the command
             distutils.core.setup(**setupoptions)
