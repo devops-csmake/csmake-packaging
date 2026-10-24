@@ -37,9 +37,18 @@ test=testHermeticShell.py
 source-dir=.
 resource-dir=%(WORKING)s/tests
 
+# Unit tests for the modules.  [!H] keeps testHermeticShell.py (Docker, its
+# own section above) from running a second time.
+[TestPython@test-Modules]
+test-dir=tests/
+test=test[!H]*.py
+source-dir=.
+resource-dir=%(WORKING)s/tests
+
 [command@test]
 description=Run testing
 000=test-HermeticShell
+001=test-Modules
 
 [translatePackageName@~~zlib1g~~]
 rpm=zlib-devel

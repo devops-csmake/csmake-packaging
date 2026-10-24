@@ -1199,7 +1199,10 @@ class RpmPackage(Packager):
             #+1 here even though we don't add the \x00 because
             #  we will always pad the header with at least one 0 at the
             #  end (see _padHeader)
-            namesize = self._cpioHexifyHeaderField(len(info.name)+1)
+            #The size counts bytes of the encoded name (not characters),
+            #  or non-ASCII names would be undersized in the cpio header.
+            namesize = self._cpioHexifyHeaderField(
+                len(info.name.encode('utf-8'))+1)
             header.append(namesize)
 
             chksum = "00000000"
