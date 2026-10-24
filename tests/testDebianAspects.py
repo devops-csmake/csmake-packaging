@@ -14,14 +14,13 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 # </copyright>
-"""Tests for the Debian aspects and PackagerAspect after the Python 3 port.
+"""Unit tests for the Debian aspects after the Python 3 port.
 
 The aspects used to build their control files in StringIO; they now write
 encoded bytes into io.BytesIO, which tarfile.addfile() then reads.  The step
-they talk to is core's real DebianPackage (its _addFileObjToControl /
-_addFileObjToArchive / _addInfoToArchive write into a real in-memory tar),
-built bare because a full csmake engine is out of reach in a unit test.
-PackagerAspect.start() also used to iterate dict views it was mutating.
+they talk to is core's DebianPackage (its _addFileObjToControl /
+_addFileObjToArchive / _addInfoToArchive write into an in-memory tar), built
+bare because a full csmake engine is out of reach in a unit test.
 """
 import importlib
 import io
@@ -137,20 +136,63 @@ class testDebianAspects(DebianAspectTestCase):
             content)
         self.assertEqual((0o644, 0, 'root'), (member.mode, member.uid, member.uname))
 
+    def test_shlibs_begin_map_fails_for_a_library_without_a_name(self):
+        aspect = self.make_aspect('IdentifyShlibsDebian')
+        self.assertFalse(aspect.begin_map(
+            'package',
+            {'from': {'location': '/build/1.2.3'}, 'tos': []},
+            self.step, self.stepoptions))
+        self.assertTrue(aspect.log.called('failed'))
+        self.assertFalse(aspect.log.called('passed'))
+        self.assertEqual({}, self.step.controls['shlibs'])
 
-class testPackagerAspect(DebianAspectTestCase):
+    def test_shlibs_unversioned_library_is_recorded_as_minus_one(self):
+        aspect = self.make_aspect('IdentifyShlibsDebian')
+        self.assertTrue(aspect.begin_map(
+            'package',
+            {'from': {'location': '/build/libplain.so'}, 'tos': []},
+            self.step, self.stepoptions))
+        self.assertEqual(
+            ('-1', 'demo', [], 'libplain.so'),
+            self.step.controls['shlibs']['libplain'])
 
-    def test_file_type_declaration_prunes_empty_fields_without_mutation_error(self):
-        # parseFileDeclarationForIndexes() yields dicts with None/'' fields;
-        # the aspect deletes those while walking the keys (py3: a view).
-        aspect = self.make_aspect('PackagerAspect')
-        aspect._installFileTypeHandler(
-            {'file-types': '<(ELF-Shared)>'}, self.stepoptions)
+    def test_shlibs_control_encodes_non_ascii_package_names(self):
+        aspect = self.make_aspect('IdentifyShlibsDebian')
+        aspect.start('package', {}, self.step, self.stepoptions)
+        self.step._control_shlibs(
+            {'libfoo': ('2', 'd\u00e9mo', [], 'libfoo.so.2.0')})
+        self.assertEqual(
+            'libfoo 2 d\u00e9mo\n'.encode('utf-8'),
+            self.read_tar(self.control_tar)['./shlibs'][1])
 
-        (indexes, owner, options), = \
-            self.stepoptions['__PackagerAspect__']['file-type-dispatch']
-        self.assertEqual([{'type': 'ELF-Shared'}], indexes)
-        self.assertIs(aspect, owner)
+    def test_conffiles_begin_map_collects_every_destination(self):
+        aspect = self.make_aspect('IdentifyConfFilesDebian')
+        self.assertTrue(aspect.begin_map(
+            'package',
+            {'from': {'location': '/build/foo.conf'},
+             'tos': [{'relLocation': 'etc/a.conf'}, {'relLocation': 'etc/b.conf'}]},
+            self.step, self.stepoptions))
+        self.assertEqual(['etc/a.conf', 'etc/b.conf'],
+                         list(self.step.controls['conffiles']))
+        self.assertTrue(aspect.log.called('passed'))
+
+    def test_lintian_without_overrides_writes_an_empty_file(self):
+        aspect = self.make_aspect('DebianLintianOverrides')
+        aspect.start('package', {'overrides': 'x'}, self.step, self.stepoptions)
+        self.step._control_lintian({})
+        member, content = self.read_tar(self.data_tar)[
+            './usr/share/lintian/overrides/demo']
+        self.assertEqual((0, b''), (member.size, content))
+
+    def test_lintian_overrides_accumulate_across_mappings(self):
+        aspect = self.make_aspect('DebianLintianOverrides')
+        aspect.mapping_complete(
+            'package', {'overrides': 'one'}, self.step, self.stepoptions)
+        aspect.mapping_complete(
+            'package', {'overrides': 'two\nthree'}, self.step, self.stepoptions)
+        self.assertEqual(
+            ['demo: one', 'demo: two', 'demo: three'],
+            self.step.controls['lintian']['overrides'])
 
 
 if __name__ == '__main__':

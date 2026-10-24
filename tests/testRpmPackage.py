@@ -22,8 +22,10 @@ port had to turn them into 'bytes' (struct.pack, hashlib, zlib and binary
 file I/O all insist on it), fix octal literals, and stop calling .sort() on
 a dict view.  A py_compile pass cannot see any of that, so these tests
 build the real structures and then read them back with small independent
-parsers (parse_header / read_cpio below) rather than re-using the code
-under test.
+parsers (rpmparse.py) rather than re-using the code under test.  Binary
+file I/O and the byte layouts are the thing under test here, so these use
+in-memory buffers and real temp files; the engine, subprocess and signer
+boundaries are exercised in the other Rpm test modules.
 
 CsmakeModule subclasses need a whole csmake engine to construct, so the
 RpmPackage methods are called on a bare instance (see support.py).
@@ -38,86 +40,15 @@ import tarfile
 import tempfile
 import unittest
 import zlib
-from unittest import mock
 
 from . import csmake_alias
-from .support import bare_instance
-
-RPM_HEADER_MAGIC = b'\x8e\xad\xe8\x01'
-# Deliberately not valid UTF-8 (\xc3\x28, \xa0, \xff), not a multiple of 4
-# bytes long, and containing every byte value.
-BINARY = bytes(range(256)) + b'\xc3\x28\xa0\xa1 not utf-8 \xff\xfe'
+from .rpmparse import by_tag, parse_header, read_cpio, read_ints, read_strings
+from .rpmparse import RPM_HEADER_MAGIC
+from .support import BINARY, bare_instance
 
 
 def load_rpm_package():
     return csmake_alias.import_plugin('RpmPackage').RpmPackage
-
-
-# --- independent readers for what the code under test writes -------------
-
-def parse_header(blob, pos=0):
-    """Reads one RPM header structure (signature or metadata).
-
-    Returns (entries, store, end) where entries is a list of
-    (tag, type, offset, count) in index order."""
-    if blob[pos:pos + 4] != RPM_HEADER_MAGIC:
-        raise AssertionError("no RPM header magic at %d: %r" % (
-            pos, blob[pos:pos + 4]))
-    reserved, nindex, hsize = struct.unpack_from('!III', blob, pos + 4)
-    if reserved != 0:
-        raise AssertionError("reserved header bytes are not zero")
-    entries = [
-        struct.unpack_from('!IIII', blob, pos + 16 + 16 * i)
-        for i in range(nindex)]
-    start = pos + 16 + 16 * nindex
-    return entries, blob[start:start + hsize], start + hsize
-
-
-def by_tag(entries):
-    return {tag: (datatype, offset, count)
-            for tag, datatype, offset, count in entries}
-
-
-def read_strings(store, offset, count):
-    strings = []
-    for _ in range(count):
-        end = store.index(b'\x00', offset)
-        strings.append(store[offset:end])
-        offset = end + 1
-    return strings
-
-
-def read_ints(store, entry, fmt):
-    datatype, offset, count = entry
-    return list(struct.unpack_from('!%d%s' % (count, fmt), store, offset))
-
-
-def read_cpio(blob):
-    """Reads an SVR4 'newc' cpio stream, checking its alignment rules.
-
-    Returns (entries, end_offset); the TRAILER!!! entry is consumed but
-    not returned."""
-    entries = []
-    pos = 0
-    while True:
-        if blob[pos:pos + 6] != b'070701':
-            raise AssertionError("no newc magic at %d: %r" % (
-                pos, blob[pos:pos + 6]))
-        fields = [
-            int(blob[pos + 6 + 8 * i:pos + 14 + 8 * i], 16)
-            for i in range(13)]
-        mode, filesize, namesize = fields[1], fields[6], fields[11]
-        name_end = pos + 110 + namesize
-        if blob[name_end - 1:name_end] != b'\x00':
-            raise AssertionError("name at %d is not NUL terminated" % pos)
-        name = blob[pos + 110:name_end - 1]
-        data_start = (name_end + 3) & ~3
-        data = blob[data_start:data_start + filesize]
-        pos = (data_start + filesize + 3) & ~3
-        if name == b'TRAILER!!!':
-            return entries, pos
-        entries.append({'name': name, 'mode': mode, 'data': data,
-                        'namesize': namesize})
 
 
 class RpmTestCase(unittest.TestCase):
@@ -275,25 +206,6 @@ class testRpmFileInfo(RpmTestCase):
         info.rpmflags = 5
         self.assertEqual(5, copy.deepcopy(info).rpmflags)  # used for directories
 
-    def test_default_info_is_rpmfileinfo_and_maps_rpmflags(self):
-        source = self.write_file('tool', BINARY)
-        package = bare_instance(self.RpmPackage, executedFileMappings=[])
-        mapping = {
-            'permissions': '0755',
-            'owner': ('root', 0), 'group': ('wheel', 10),
-            'rpmflags': 'config, noreplace'}
-        package._placeFileInArchive(mapping, source, '/usr/bin/tool', None)
-
-        (_, sourcePath, archivePath, info), = package.executedFileMappings
-        self.assertEqual((source, '/usr/bin/tool'), (sourcePath, archivePath))
-        self.assertIsInstance(info, self.RpmPackage.RpmFileInfo)
-        self.assertEqual(0o755, info.mode)
-        self.assertEqual(len(BINARY), info.size)
-        self.assertEqual(tarfile.REGTYPE, info.type)
-        self.assertEqual(('root', 0, 'wheel', 10),
-                         (info.uname, info.uid, info.gname, info.gid))
-        self.assertEqual(1 | (1 << 4), info.rpmflags)  # config | noreplace
-
 
 class testRpmCpioPayload(RpmTestCase):
     """CpioFile writes the gzip'd newc archive that is the RPM's payload."""
@@ -401,79 +313,6 @@ class testRpmCpioPayload(RpmTestCase):
         self.assertEqual([stat.S_IFLNK | 0o777], cpio.fileModes)
         self.assertEqual(['libfoo.so.1'], cpio.fileLinkTos)
         self.assertEqual([0], cpio.fileFlags)
-
-
-FAKE_DD = """#!/bin/sh
-# Test stand-in for GNU dd: BSD dd (macOS) rejects 'oflag=append'.
-for arg in "$@"; do
-  case "$arg" in
-    if=*) src="${arg#if=}" ;;
-    of=*) dst="${arg#of=}" ;;
-  esac
-done
-cat "$src" >> "$dst"
-"""
-
-
-class testRpmFinishArchive(RpmTestCase):
-    """_setupArchive + _placeFileInArchive + _finishArchive, end to end."""
-
-    def test_finished_package_is_internally_consistent(self):
-        bindir = self.path('bin')
-        os.mkdir(bindir)
-        dd = os.path.join(bindir, 'dd')
-        with open(dd, 'w') as script:
-            script.write(FAKE_DD)
-        os.chmod(dd, 0o755)
-        env = {'PATH': bindir + os.pathsep + os.environ.get('PATH', '')}
-        patcher = mock.patch.dict(os.environ, env)
-        patcher.start()
-        self.addCleanup(patcher.stop)
-
-        source = self.write_file('demo.bin', BINARY)
-        rpm_path = self.path('demo-1.0-1.noarch.rpm')
-        package = bare_instance(
-            self.RpmPackage,
-            options={}, arch='noarch', fullLeadName='demo-1.0-1',
-            headers=self.RpmPackage.RpmRecordManager(63),
-            fullPathToPackage=rpm_path,
-            fullPathToArchive=rpm_path + '.tempcpio')
-        package._setupArchive()
-        mapping = {'permissions': '0755', 'owner': ('root', 0),
-                   'group': ('root', 0), 'rpmflags': 'config'}
-        package._placeFileInArchive(mapping, source, '/usr/bin/demo', None)
-        self.assertTrue(package._finishArchive())
-
-        with open(rpm_path, 'rb') as rpm:
-            blob = rpm.read()
-        self.assertEqual(b'\xed\xab\xee\xdb', blob[:4])
-        self.assertEqual(b'demo-1.0-1\x00', blob[10:21])
-        sig_entries, sig_store, sig_end = parse_header(blob, 96)
-        # The metadata header starts on the next 8 byte boundary.
-        header_start = (sig_end + 7) & ~7
-        self.assertEqual(b'\x00' * (header_start - sig_end),
-                         blob[sig_end:header_start])
-        entries, store, header_end = parse_header(blob, header_start)
-        header, payload = blob[header_start:header_end], blob[header_end:]
-        raw = zlib.decompress(payload, 31)
-
-        sig = by_tag(sig_entries)
-        self.assertEqual([len(header) + len(payload)],
-                         read_ints(sig_store, sig[1000], 'l'))       # SIZE
-        self.assertEqual(hashlib.md5(header + payload).digest(),
-                         sig_store[sig[1004][1]:sig[1004][1] + 16])  # MD5
-        self.assertEqual([len(raw)], read_ints(sig_store, sig[1007], 'l'))
-        self.assertEqual([hashlib.sha1(header).hexdigest().encode()],
-                         read_strings(sig_store, sig[269][1], 1))    # SHA1HEADER
-
-        tags = by_tag(entries)
-        self.assertEqual([len(BINARY)], read_ints(store, tags[1009], 'l'))
-        self.assertEqual([len(raw)], read_ints(store, tags[1046], 'l'))
-        self.assertEqual([b'demo'], read_strings(store, tags[1117][1], 1))
-        self.assertEqual([1], read_ints(store, tags[1037], 'l'))
-        files, _ = read_cpio(raw)
-        self.assertEqual([(b'./usr/bin/demo', BINARY)],
-                         [(f['name'], f['data']) for f in files])
 
 
 if __name__ == '__main__':
