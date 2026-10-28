@@ -18,16 +18,15 @@
 from CsmakeModules.Packager import Packager
 import os
 import os.path
-import email.Utils  #For RFC 2822 timestamp
+import email.utils  #For RFC 2822 timestamp
 import zlib
 import sys
 import subprocess
-import StringIO
 import tarfile
 import hashlib
 import struct
 import time
-import collections
+import collections.abc
 import copy
 import re
 
@@ -149,7 +148,7 @@ class RpmPackage(Packager):
             self.data = data
             self.entries = 1
             self.alignment = 1
-            self.offsetdata = ""
+            self.offsetdata = b""
 
         def writeHeader(self, package, offset, hashfunctions):
             if self.entries == 0:
@@ -183,7 +182,7 @@ class RpmPackage(Packager):
 
         def alignOffset(self, offset):
             pad = self.calculateOffset(offset)
-            self.offsetdata = "\x00" * pad
+            self.offsetdata = b"\x00" * pad
             return offset + pad
 
         def _initWithNumericData(self, tag, datatype, data, packtype, limit):
@@ -191,10 +190,10 @@ class RpmPackage(Packager):
             # ... thus packtype will be lowercase.
             self.entries = 1
             self.alignment = 1
-            self.offsetdata = ""
+            self.offsetdata = b""
             self.datatype = datatype
             self.tag = tag
-            if isinstance(data, collections.Iterable):
+            if isinstance(data, collections.abc.Iterable):
                 #This is an array
                 self.entries = len(data)
                 for item in data:
@@ -213,7 +212,7 @@ class RpmPackage(Packager):
     #Type 0: null
     class RpmRecordNull(RpmRecord):
         def __init__(self, tag):
-            RpmPackage.RpmRecord.__init__(self, tag, 0, "")
+            RpmPackage.RpmRecord.__init__(self, tag, 0, b"")
 
     #Type 1: char
     class RpmRecordChar(RpmRecord):
@@ -249,6 +248,8 @@ class RpmPackage(Packager):
     #Type 6: string
     class RpmRecordString(RpmRecord):
         def __init__(self, tag, data):
+            if isinstance(data, str):
+                data = data.encode('utf-8')
             size = len(data)
             #RECHECK: it looks like strings and string arrays might be
             # padded to align on a word boundary.  This would make
@@ -271,6 +272,7 @@ class RpmPackage(Packager):
         def __init__(self, tag, data):
             if type(data) == str:
                 raise ValueError("StringArray must be a list or tuple")
+            data = [ x.encode('utf-8') if isinstance(x, str) else x for x in data ]
             size = len(data)
             pack = ["%ds" % (len(x) + 1) for x in data]
             data = struct.pack(' '.join(pack), *data)
@@ -285,7 +287,7 @@ class RpmPackage(Packager):
 
     class RpmRecordSection(RpmRecordBinary):
         def __init__(self, section, manager):
-            RpmPackage.RpmRecordBinary.__init__(self, section, "\x00" * 16)
+            RpmPackage.RpmRecordBinary.__init__(self, section, b"\x00" * 16)
             self.manager = manager
 
         def update(self, buf):
@@ -305,8 +307,8 @@ class RpmPackage(Packager):
     class RpmRecordManager:
         def __init__(self, section):
             self.records = {}
-            self.magic = "\x8e\xad\xe8"
-            self.version = "\x01"
+            self.magic = b"\x8e\xad\xe8"
+            self.version = b"\x01"
             self.sectionHeaderRecord = RpmPackage.RpmRecordSection(
                 section, self)
 
@@ -322,8 +324,7 @@ class RpmPackage(Packager):
         def write(self, package, hashfunctions=[]):
             #First write the header
             totalStore = 0
-            indices = self.records.keys()
-            indices.sort()
+            indices = sorted(self.records.keys())
             for index in indices:
                 value = self.records[index]
                 totalStore += value.calculateOffset(totalStore)
@@ -384,7 +385,7 @@ class RpmPackage(Packager):
     CLASSIFIER_MAPS = {
         (1016, RpmRecordI18NStringArray) : {  #RPMTAG_GROUP (i18n array)
             '' :
-                        (sys.maxint, 'Applications'),
+                        (sys.maxsize, 'Applications'),
             'Intended Audience :: Developers' :
                         (9, 'Development'),
             'Topic :: Software Development :: Libraries' :
@@ -397,7 +398,7 @@ class RpmPackage(Packager):
         '**python-lib' : Packager.CLASSIFIER_MAPS['**python-lib'],
         (1014, RpmRecordString) : Packager.CLASSIFIER_MAPS['License'],  #RPMTAG_LICENSE
         (1021, RpmRecordString) : { #RPMTAG_OS
-            '' : (sys.maxint, 'linux'),
+            '' : (sys.maxsize, 'linux'),
             'Operating System :: POSIX :: Linux' :
                  (1, 'linux')
         }
@@ -716,7 +717,7 @@ class RpmPackage(Packager):
             (1064, RpmPackage.RpmRecordString)] = "4.1.0"
 
         #Process all metadata that we can now
-        for tag, value in self.packageMetadata.iteritems():
+        for tag, value in self.packageMetadata.items():
             if type(tag) is tuple:
                 actualtag, factory = tag
                 self.log.devdebug("%s: %d: %s", str(factory), actualtag, str(value))
@@ -918,6 +919,26 @@ class RpmPackage(Packager):
         #NOTE: Don't forget to call this from cpiofile...
         Packager._filePlacingInPackage(self, archive, sourcePath, archivePath, contents)
 
+    class RpmFileInfo:
+        """Lightweight, mutable stand-in for tarfile.TarInfo used while
+           tracking a file destined for the RPM's cpio payload.
+           Recent Python versions define __slots__ on tarfile.TarInfo
+           (no arbitrary attributes), but RpmPackage needs to carry an
+           RPM-specific 'rpmflags' attribute alongside the usual file
+           metadata, so a plain attribute-bag object is used instead."""
+        def __init__(self, name=""):
+            self.name = name
+            self.mode = 0
+            self.type = tarfile.REGTYPE
+            self.size = 0
+            self.uid = 0
+            self.gid = 0
+            self.uname = ""
+            self.gname = ""
+            self.mtime = 0
+            self.linkname = ""
+            self.rpmflags = 0
+
     def _addInfoToArchive(self, info):
         self.executedFileMappings.append((None, None, None, info))
 
@@ -949,7 +970,7 @@ class RpmPackage(Packager):
 
     def _placeFileInArchive(self, mapping, sourcePath, archivePath, aspects, info = None):
         if info is None:
-            info = tarfile.TarInfo()
+            info = RpmPackage.RpmFileInfo()
         info.name = archivePath
         info.mode = self._modeInt(mapping['permissions'])
         if os.path.isdir(sourcePath): #Be sure to handle source link as real sorce
@@ -1045,10 +1066,10 @@ class RpmPackage(Packager):
             minor,
             rpmtype,
             archnum,
-            name,
+            name.encode('utf-8'),
             osnum,
             sig_type,
-            '\x00' * 16)
+            b'\x00' * 16)
 
     class CpioFile:
         def __init__(
@@ -1111,10 +1132,10 @@ class RpmPackage(Packager):
             self.currentInode += 1
 
             if info.type == tarfile.REGTYPE:
-                typeint = 0100 << 9
+                typeint = 0o100 << 9
                 self.fileLinkTos.append('')
             elif info.type == tarfile.SYMTYPE:
-                typeint = 0120 << 9
+                typeint = 0o120 << 9
                 self.fileLinkTos.append(info.linkname)
 
             self.fileModes.append(typeint | info.mode)
@@ -1178,7 +1199,10 @@ class RpmPackage(Packager):
             #+1 here even though we don't add the \x00 because
             #  we will always pad the header with at least one 0 at the
             #  end (see _padHeader)
-            namesize = self._cpioHexifyHeaderField(len(info.name)+1)
+            #The size counts bytes of the encoded name (not characters),
+            #  or non-ASCII names would be undersized in the cpio header.
+            namesize = self._cpioHexifyHeaderField(
+                len(info.name.encode('utf-8'))+1)
             header.append(namesize)
 
             chksum = "00000000"
@@ -1186,13 +1210,16 @@ class RpmPackage(Packager):
 
             header.append(info.name)
 
-            self.fileFlags.append(info.rpmflags)
+            #NOTE: aspect-provided infos (see _addInfoToArchive) are real
+            #      tarfile.TarInfo instances and never had rpmflags set;
+            #      default those to 0 (a boring, ordinary file).
+            self.fileFlags.append(getattr(info, 'rpmflags', 0))
 
             #TODO: If necessary we can expose this through the installmap
             #      like rpmflags...rpmverify?
             self.fileVerifyFlags.append(0)
 
-            return ''.join(header)
+            return ''.join(header).encode('utf-8')
 
         def _writeToArchive(self, buf):
             self.totalUncompressedSize += len(buf)
@@ -1208,7 +1235,7 @@ class RpmPackage(Packager):
         def _padRecord(self, written):
             pad = 4 - (written % 4)
             if pad != 4:
-                return self._writeToArchive('\x00'*pad)
+                return self._writeToArchive(b'\x00'*pad)
             else:
                 return 0
 
@@ -1217,16 +1244,16 @@ class RpmPackage(Packager):
         #      it works.  A +1 is added to the string for the termination
         def _padHeader(self, written):
             pad = 4 - (written % 4)
-            return self._writeToArchive('\x00'*pad)
+            return self._writeToArchive(b'\x00'*pad)
 
         def _writeTrailer(self):
             #I probably should use the header creation, however, this
             # is much easier than attempting to bend the will of info
-            return self._writeToArchive("%s00000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000b00000000TRAILER!!!\x00\x00\x00\x00" % self.magic)
+            return self._writeToArchive(("%s00000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000b00000000TRAILER!!!\x00\x00\x00\x00" % self.magic).encode('utf-8'))
 
         def _addLinkToCpio(self, filetuple):
             mapping, sourcePath, archivePath, info = filetuple
-            data = info.linkname
+            data = info.linkname.encode('utf-8')
             info.size = len(data)
             header = self.createCpioHeader(info)
             written = len(header)
@@ -1259,7 +1286,7 @@ class RpmPackage(Packager):
             filemd5 = hashlib.md5()
             self.clearDigests.append(filemd5)
             written = 0
-            with open(sourcePath) as source:
+            with open(sourcePath, 'rb') as source:
                 buf = source.read(self.CHUNK_SIZE)
                 while len(buf) > 0:
                     self.totalUncompressedFileSize += len(buf)
@@ -1363,7 +1390,7 @@ class RpmPackage(Packager):
         self.totalPayloadSize = 0
         self.headerSHA = hashlib.sha1()
         self.contentMD5 = hashlib.md5()
-        self.leadmagic = "\xed\xab\xee\xdb"
+        self.leadmagic = b"\xed\xab\xee\xdb"
         self.package = open(self.fullPathToPackage, 'wb')
         open(self.fullPathToArchive, 'wb').close()
         self.archive = open(self.fullPathToArchive, 'r+b')
@@ -1466,7 +1493,7 @@ class RpmPackage(Packager):
         headerdigests = [self.headerSHA, self.contentMD5]
         headerdigests.extend(self.signers)
         self.headers.write(self.archiveHeaders, headerdigests)
-	self.totalPayloadSize = self.archiveHeaders.tell()
+        self.totalPayloadSize = self.archiveHeaders.tell()
         self.archiveHeaders.close()
         self.archive.flush()
         self.archive.seek(0)
@@ -1488,7 +1515,7 @@ class RpmPackage(Packager):
         # this seems to count toward the signature header.
         endbytes = 8 - (self.package.tell() % 8)
         if endbytes != 8:
-            self.package.write( '\x00' * endbytes)
+            self.package.write( b'\x00' * endbytes)
         self.package.close()
         subprocess.check_call(
             ['dd',

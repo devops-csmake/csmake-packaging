@@ -32,7 +32,7 @@
 # </copyright>
 from CsmakeModules.PackagerAspect import PackagerAspect
 import os.path
-import StringIO
+import io
 
 class DebianLintianOverrides(PackagerAspect):
     """Purpose: To generate a lintian override file for a debian package
@@ -62,10 +62,10 @@ class DebianLintianOverrides(PackagerAspect):
         return PackagerAspect.start(self, phase, options, step, stepoptions)
 
     def _control_lintian(self, control):
-        lintianfile = StringIO.StringIO()
+        lintianfile = io.BytesIO()
         if 'overrides' in control:
             for override in control['overrides']:
-                lintianfile.write("%s\n" %  override)
+                lintianfile.write(("%s\n" %  override).encode('utf-8'))
         lintianFilename = os.path.join(
             'usr',
             'share',

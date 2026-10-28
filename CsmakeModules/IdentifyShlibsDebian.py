@@ -32,7 +32,7 @@
 # </copyright>
 from CsmakeModules.PackagerAspect import PackagerAspect
 import os.path
-import StringIO
+import io
 import tarfile
 
 class IdentifyShlibsDebian(PackagerAspect):
@@ -65,12 +65,12 @@ class IdentifyShlibsDebian(PackagerAspect):
         return PackagerAspect.start(self, phase, options, step, stepoptions)
 
     def _control_shlibs(self, control):
-        shlibsfile = StringIO.StringIO()
-        for key, values in control.iteritems():
+        shlibsfile = io.BytesIO()
+        for key, values in control.items():
             ver = values[0]
             if ver == '-1':
                 ver = '0'
-            shlibsfile.write("%s %s %s\n" % (key, ver, values[1]))
+            shlibsfile.write(("%s %s %s\n" % (key, ver, values[1])).encode('utf-8'))
         info = self.step._createControlFileInfo('shlibs')
         self.step._addFileObjToControl(shlibsfile, info)
         shlibsfile.close()
@@ -113,7 +113,7 @@ class IdentifyShlibsDebian(PackagerAspect):
     def mapping_complete(self, phase, options, step, stepoptions):
         #Create the soft links
         shlibs = step._packageControl('shlibs')
-        for key, values in shlibs.iteritems():
+        for key, values in shlibs.items():
             if values[0] =='-1':
                 #Not a normal library, don't softlink it
                 continue

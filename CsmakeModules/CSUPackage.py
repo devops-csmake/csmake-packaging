@@ -34,7 +34,6 @@ from CsmakeModules.ZipPackager import ZipPackager
 from CsmakeModules.Packager import Packager
 import zipfile
 import os.path
-import StringIO
 import hashlib
 import json
 import sys

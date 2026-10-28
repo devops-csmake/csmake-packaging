@@ -26,9 +26,29 @@
 [~~phases~~]
 clean=Remove all csmake generated files
 package=Create the csmake-packaging package
+test=Run testing for csmake-packaging
 **sequences=
    clean -> package: create the csmake-packaging install package
 **default=clean -> package
+
+[TestPython@test-HermeticShell]
+test-dir=tests/
+test=testHermeticShell.py
+source-dir=.
+resource-dir=%(WORKING)s/tests
+
+# Unit tests for the modules.  [!H] keeps testHermeticShell.py (Docker, its
+# own section above) from running a second time.
+[TestPython@test-Modules]
+test-dir=tests/
+test=test[!H]*.py
+source-dir=.
+resource-dir=%(WORKING)s/tests
+
+[command@test]
+description=Run testing
+000=test-HermeticShell
+001=test-Modules
 
 [translatePackageName@~~zlib1g~~]
 rpm=zlib-devel
@@ -46,7 +66,7 @@ about=The core csmake contains minimal support for packaging
  Future support may include: Python wheels, cygwin, Debian and RPM source
 packager= Jeremiah Patterson <jerry@casecracker.com>
 manufacturer=Cardinal Peak Technologies, LLC
-depends=python (>= 2.6), binutils, chrpath, zlib1g, csmake-swak (>= 1.1)
+depends=python (>= 3.6), binutils, chrpath, zlib1g, csmake-swak (>= 1.1)
 recommends=rpmlint
 keywords=make build development
 url=https://rndwiki.corp.hpecorp.net/confluence/display/cloudos/CsMake
@@ -55,9 +75,8 @@ classifiers=
     Development Status :: 4 - Beta
     Intended Audience :: Developers
     Topic :: Software Development :: Build Tools
-    Programming Language :: Python :: 2
-    Programming Language :: Python :: 2.6
-    Programming Language :: Python :: 2.7
+    Programming Language :: Python :: 3
+    Programming Language :: Python :: 3 :: Only
     License :: OSI Approved :: GNU General Public License v3 (GPLv3)
 **files=
     <CsmakeModules (python:csmake-modules)> CsmakeModules/*.py

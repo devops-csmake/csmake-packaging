@@ -32,7 +32,7 @@
 # </copyright>
 from CsmakeModules.PackagerAspect import PackagerAspect
 import os.path
-import StringIO
+import io
 
 class IdentifyConfFilesDebian(PackagerAspect):
     """Purpose: To identify and generate the proper control file for
@@ -58,13 +58,13 @@ class IdentifyConfFilesDebian(PackagerAspect):
         return PackagerAspect.start(self, phase, options, step, stepoptions)
 
     def _control_conffiles(self, control):
-        conffilefile = StringIO.StringIO()
+        conffilefile = io.BytesIO()
         for key in control.keys():
             relpath = os.path.relpath(key, self.step.archiveRoot)
             if relpath.startswith('../'):
                 raise ValueError("Path to conffile didn't land in archive: %s" % key)
             path = '/' + relpath
-            conffilefile.write("%s\n" % path)
+            conffilefile.write(("%s\n" % path).encode('utf-8'))
         info = self.step._createControlFileInfo('conffiles')
         self.step._addFileObjToControl(conffilefile, info)
         conffilefile.close()
